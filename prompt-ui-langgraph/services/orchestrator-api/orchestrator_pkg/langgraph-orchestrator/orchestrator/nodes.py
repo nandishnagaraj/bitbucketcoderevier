@@ -89,6 +89,7 @@ def pm_node(
 ) -> OrchestratorState:
     run_dir = state.get("run_dir") or "runs"
 
+    # PRD is always generated — it feeds all downstream PM sub-artifacts and arch/dev/qa nodes
     prd_prompt = _fill(
         prompts.prd_full(),
         {
@@ -107,45 +108,48 @@ def pm_node(
         required_sections=["Executive Summary", "Requirements", "Assumptions", "Open Questions", "Traceability"],
         context=state.get("idea", ""),
     )
-
-    gap_prompt = prompts.prd_gap().replace("[PASTE PRD HERE]", prd)
-    gap_review = llm.invoke(gap_prompt)
-    gap_review = _enforce_sections(
-        llm=llm,
-        artifact_name="PRD Gap Review",
-        markdown=gap_review,
-        required_sections=["Gaps", "Recommendations", "Open Questions"],
-    )
-
-    rtm_prompt = prompts.prd_rtm().replace("[PASTE PRD]", prd)
-    rtm = llm.invoke(rtm_prompt)
-    rtm = _enforce_sections(
-        llm=llm,
-        artifact_name="RTM",
-        markdown=rtm,
-        required_sections=["Traceability Matrix"],
-    )
-
-    use_case_prompt = (
-        "Generate a concise markdown use-case document from this PRD. "
-        "Include actors, preconditions, main flow, alternate flows, and postconditions.\n\n"
-        f"PRD:\n{prd}"
-    )
-    use_cases = llm.invoke(use_case_prompt)
-    use_cases = _enforce_sections(
-        llm=llm,
-        artifact_name="Use Cases",
-        markdown=use_cases,
-        required_sections=["Actors", "Preconditions", "Main Flow", "Alternate Flows", "Postconditions"],
-    )
-
     if _persist("prd", selected_artifacts):
         write_artifact(run_dir, "01_prd.md", prd)
+
+    # Only generate + validate each sub-artifact when it is actually selected
+    gap_review = ""
     if _persist("prd_gap_review", selected_artifacts):
+        gap_prompt = prompts.prd_gap().replace("[PASTE PRD HERE]", prd)
+        gap_review = llm.invoke(gap_prompt)
+        gap_review = _enforce_sections(
+            llm=llm,
+            artifact_name="PRD Gap Review",
+            markdown=gap_review,
+            required_sections=["Gaps", "Recommendations", "Open Questions"],
+        )
         write_artifact(run_dir, "02_prd_gap_review.md", gap_review)
+
+    use_cases = ""
     if _persist("use_cases", selected_artifacts):
+        use_case_prompt = (
+            "Generate a concise markdown use-case document from this PRD. "
+            "Include actors, preconditions, main flow, alternate flows, and postconditions.\n\n"
+            f"PRD:\n{prd}"
+        )
+        use_cases = llm.invoke(use_case_prompt)
+        use_cases = _enforce_sections(
+            llm=llm,
+            artifact_name="Use Cases",
+            markdown=use_cases,
+            required_sections=["Actors", "Preconditions", "Main Flow", "Alternate Flows", "Postconditions"],
+        )
         write_artifact(run_dir, "03_use_cases.md", use_cases)
+
+    rtm = ""
     if _persist("rtm", selected_artifacts):
+        rtm_prompt = prompts.prd_rtm().replace("[PASTE PRD]", prd)
+        rtm = llm.invoke(rtm_prompt)
+        rtm = _enforce_sections(
+            llm=llm,
+            artifact_name="RTM",
+            markdown=rtm,
+            required_sections=["Traceability Matrix"],
+        )
         write_artifact(run_dir, "04_rtm.md", rtm)
 
     return {**state, "prd": prd, "use_cases": use_cases, "rtm": rtm, "pm_open_questions": []}
@@ -161,6 +165,7 @@ def architect_node(
     run_dir = state.get("run_dir") or "runs"
     prd = state.get("prd", "")
 
+    # Architecture is always generated — it feeds api_contract, arch_risks, and downstream dev/qa nodes
     arch_prompt = prompts.architecture_design().replace("[PASTE KEY NFRs AND FUNCTIONAL REQUIREMENTS]", prd)
     architecture = llm.invoke(arch_prompt)
     architecture = _enforce_sections(
@@ -169,30 +174,34 @@ def architect_node(
         markdown=architecture,
         required_sections=["Executive Summary", "Architecture", "Decisions", "Risks", "Handoff"],
     )
-
-    api_prompt = prompts.openapi_contract().replace("[FEATURE DESCRIPTION]", state.get("idea", ""))                                         .replace("[PASTE RELEVANT SCHEMA]", "(derive from PRD)")                                         .replace("[WHO CALLS THIS API — frontend, mobile, third parties]", "(derive from PRD)")
-    api_contract = llm.invoke(api_prompt)
-    api_contract = _enforce_sections(
-        llm=llm,
-        artifact_name="API Contract",
-        markdown=api_contract,
-        required_sections=["Endpoints", "Schemas", "Error Handling"],
-    )
-
-    risk_prompt = prompts.arch_risk_review().replace("[PASTE DESIGN DOCUMENT OR DIAGRAM]", architecture)
-    arch_risks = llm.invoke(risk_prompt)
-    arch_risks = _enforce_sections(
-        llm=llm,
-        artifact_name="Architecture Risk Review",
-        markdown=arch_risks,
-        required_sections=["Risk Register", "Mitigations", "Open Questions"],
-    )
-
     if _persist("architecture", selected_artifacts):
         write_artifact(run_dir, "05_architecture.md", architecture)
+
+    api_contract = ""
     if _persist("api_contract", selected_artifacts):
+        api_prompt = (prompts.openapi_contract()
+            .replace("[FEATURE DESCRIPTION]", state.get("idea", ""))
+            .replace("[PASTE RELEVANT SCHEMA]", "(derive from PRD)")
+            .replace("[WHO CALLS THIS API — frontend, mobile, third parties]", "(derive from PRD)"))
+        api_contract = llm.invoke(api_prompt)
+        api_contract = _enforce_sections(
+            llm=llm,
+            artifact_name="API Contract",
+            markdown=api_contract,
+            required_sections=["Endpoints", "Schemas", "Error Handling"],
+        )
         write_artifact(run_dir, "06_openapi.md", api_contract)
+
+    arch_risks = ""
     if _persist("arch_risks", selected_artifacts):
+        risk_prompt = prompts.arch_risk_review().replace("[PASTE DESIGN DOCUMENT OR DIAGRAM]", architecture)
+        arch_risks = llm.invoke(risk_prompt)
+        arch_risks = _enforce_sections(
+            llm=llm,
+            artifact_name="Architecture Risk Review",
+            markdown=arch_risks,
+            required_sections=["Risk Register", "Mitigations", "Open Questions"],
+        )
         write_artifact(run_dir, "07_arch_risk_review.md", arch_risks)
 
     return {**state, "architecture": architecture, "api_contract": api_contract, "arch_risks": arch_risks, "adrs": "(see architecture output)"}
@@ -208,31 +217,37 @@ def developer_node(
     run_dir = state.get("run_dir") or "runs"
     prd = state.get("prd", "")
 
-    stories_prompt = prompts.stories_from_prd().replace("[PASTE RELEVANT PRD SECTION]", prd)
-    user_stories = llm.invoke(stories_prompt)
-    user_stories = _enforce_sections(
-        llm=llm,
-        artifact_name="User Stories",
-        markdown=user_stories,
-        required_sections=["User Stories", "Acceptance Criteria", "Traceability"],
-    )
-
-    impl_prompt = prompts.dev_implementation()        .replace("[LANGUAGE]", "(project language)")        .replace("[FRAMEWORK]", state.get("tech_stack", "(stack)") )        .replace("[PASTE RELATED FILES / INTERFACES]", "(none provided)")        .replace("[PASTE RELEVANT SCHEMA]", "(derive from PRD/OpenAPI)")        .replace("[FEATURE]", state.get("idea", ""))        .replace("[US-###]", "US-001")
-    implementation_plan = llm.invoke(impl_prompt)
-    implementation_plan = _enforce_sections(
-        llm=llm,
-        artifact_name="Implementation Plan",
-        markdown=implementation_plan,
-        required_sections=["Implementation Plan", "Dependencies", "Definition of Done"],
-    )
-
-    # In many orgs, you’ll have a second pass that produces code skeletons/files.
-    code_skeleton = """# Code Skeleton\n\n(Generated code would be placed here when connected to a repo/tooling.)\n"""
-
+    user_stories = ""
     if _persist("user_stories", selected_artifacts):
+        stories_prompt = prompts.stories_from_prd().replace("[PASTE RELEVANT PRD SECTION]", prd)
+        user_stories = llm.invoke(stories_prompt)
+        user_stories = _enforce_sections(
+            llm=llm,
+            artifact_name="User Stories",
+            markdown=user_stories,
+            required_sections=["User Stories", "Acceptance Criteria", "Traceability"],
+        )
         write_artifact(run_dir, "08_user_stories.md", user_stories)
+
+    implementation_plan = ""
     if _persist("implementation_plan", selected_artifacts):
+        impl_prompt = (prompts.dev_implementation()
+            .replace("[LANGUAGE]", "(project language)")
+            .replace("[FRAMEWORK]", state.get("tech_stack", "(stack)"))
+            .replace("[PASTE RELATED FILES / INTERFACES]", "(none provided)")
+            .replace("[PASTE RELEVANT SCHEMA]", "(derive from PRD/OpenAPI)")
+            .replace("[FEATURE]", state.get("idea", ""))
+            .replace("[US-###]", "US-001"))
+        implementation_plan = llm.invoke(impl_prompt)
+        implementation_plan = _enforce_sections(
+            llm=llm,
+            artifact_name="Implementation Plan",
+            markdown=implementation_plan,
+            required_sections=["Implementation Plan", "Dependencies", "Definition of Done"],
+        )
         write_artifact(run_dir, "09_implementation_plan.md", implementation_plan)
+
+    code_skeleton = "# Code Skeleton\n\n(Generated code would be placed here when connected to a repo/tooling.)\n"
     if _persist("code_skeleton", selected_artifacts):
         write_artifact(run_dir, "10_code_skeleton.md", code_skeleton)
 
@@ -251,55 +266,85 @@ def qa_node(
     stories = state.get("user_stories", "")
     api = state.get("api_contract", "")
 
-    unit_prompt = prompts.test_plan_unit().replace("[PASTE FUNCTION OR CLASS]", code)                                        .replace("[LANGUAGE]", "(language)")                                        .replace("[JEST / PYTEST / JUNIT / etc.]", "(test framework)")                                        .replace("[JEST MOCKS / MOCKITO / UNITTEST.MOCK / etc.]", "(mocking)")                                        .replace("[PASTE INTERFACES OR SIGNATURES]", "(derive from code)")
-    unit_tests = llm.invoke(unit_prompt)
-    unit_tests = _enforce_sections(
-        llm=llm,
-        artifact_name="Unit Tests",
-        markdown=unit_tests,
-        required_sections=["Test Cases", "Expected Results"],
-    )
+    # test_plan bundles: unit + integration + security + coverage_gaps
+    # Only generate each component when test_plan or coverage_gaps is selected
+    need_test_plan = _persist("test_plan", selected_artifacts)
+    need_coverage = _persist("coverage_gaps", selected_artifacts)
 
-    int_prompt = prompts.test_plan_integration().replace("[METHOD]", "(method)")                                              .replace("[PATH]", "(path)")                                              .replace("[PASTE OPENAPI SPEC SECTION]", api or "(no api)")                                              .replace("[DB TYPE AND RELEVANT TABLES]", "(db)")                                              .replace("[AUTH MECHANISM]", "(auth)")                                              .replace("[SUPERTEST / PYTEST / POSTMAN / etc.]", "(framework)")
-    integration_tests = llm.invoke(int_prompt)
-    integration_tests = _enforce_sections(
-        llm=llm,
-        artifact_name="Integration Tests",
-        markdown=integration_tests,
-        required_sections=["Test Cases", "Expected Results"],
-    )
+    unit_tests = ""
+    if need_test_plan:
+        unit_prompt = (prompts.test_plan_unit()
+            .replace("[PASTE FUNCTION OR CLASS]", code)
+            .replace("[LANGUAGE]", "(language)")
+            .replace("[JEST / PYTEST / JUNIT / etc.]", "(test framework)")
+            .replace("[JEST MOCKS / MOCKITO / UNITTEST.MOCK / etc.]", "(mocking)")
+            .replace("[PASTE INTERFACES OR SIGNATURES]", "(derive from code)"))
+        unit_tests = llm.invoke(unit_prompt)
+        unit_tests = _enforce_sections(
+            llm=llm,
+            artifact_name="Unit Tests",
+            markdown=unit_tests,
+            required_sections=["Test Cases", "Expected Results"],
+        )
 
-    sec_prompt = prompts.test_security().replace("[FEATURE DESCRIPTION]", state.get("idea", ""))                                       .replace("[LIST ENDPOINTS]", "(derive from OpenAPI)")                                       .replace("[JWT / OAuth / Session]", "(auth)")                                       .replace("[PII / Financial / Public]", "(classify data)")
-    security_tests = llm.invoke(sec_prompt)
-    security_tests = _enforce_sections(
-        llm=llm,
-        artifact_name="Security Tests",
-        markdown=security_tests,
-        required_sections=["Threats", "Test Cases", "Expected Results"],
-    )
+    integration_tests = ""
+    if need_test_plan:
+        int_prompt = (prompts.test_plan_integration()
+            .replace("[METHOD]", "(method)")
+            .replace("[PATH]", "(path)")
+            .replace("[PASTE OPENAPI SPEC SECTION]", api or "(no api)")
+            .replace("[DB TYPE AND RELEVANT TABLES]", "(db)")
+            .replace("[AUTH MECHANISM]", "(auth)")
+            .replace("[SUPERTEST / PYTEST / POSTMAN / etc.]", "(framework)"))
+        integration_tests = llm.invoke(int_prompt)
+        integration_tests = _enforce_sections(
+            llm=llm,
+            artifact_name="Integration Tests",
+            markdown=integration_tests,
+            required_sections=["Test Cases", "Expected Results"],
+        )
 
-    coverage_prompt = prompts.test_coverage_gaps().replace("[PASTE SOURCE FILE]", code)                                               .replace("[PASTE TEST FILE]", unit_tests)                                               .replace("[PASTE COVERAGE OUTPUT]", "(not available)")
-    coverage_gaps = llm.invoke(coverage_prompt)
-    coverage_gaps = _enforce_sections(
-        llm=llm,
-        artifact_name="Coverage Gaps",
-        markdown=coverage_gaps,
-        required_sections=["Coverage Gaps", "Recommendations", "Open Questions"],
-    )
+    security_tests = ""
+    if need_test_plan:
+        sec_prompt = (prompts.test_security()
+            .replace("[FEATURE DESCRIPTION]", state.get("idea", ""))
+            .replace("[LIST ENDPOINTS]", "(derive from OpenAPI)")
+            .replace("[JWT / OAuth / Session]", "(auth)")
+            .replace("[PII / Financial / Public]", "(classify data)"))
+        security_tests = llm.invoke(sec_prompt)
+        security_tests = _enforce_sections(
+            llm=llm,
+            artifact_name="Security Tests",
+            markdown=security_tests,
+            required_sections=["Threats", "Test Cases", "Expected Results"],
+        )
 
-    # Heuristic defect extraction from coverage_gaps (or model output)
-    defects = _extract_defects(coverage_gaps)
+    coverage_gaps = ""
+    if need_test_plan or need_coverage:
+        coverage_prompt = (prompts.test_coverage_gaps()
+            .replace("[PASTE SOURCE FILE]", code)
+            .replace("[PASTE TEST FILE]", unit_tests)
+            .replace("[PASTE COVERAGE OUTPUT]", "(not available)"))
+        coverage_gaps = llm.invoke(coverage_prompt)
+        coverage_gaps = _enforce_sections(
+            llm=llm,
+            artifact_name="Coverage Gaps",
+            markdown=coverage_gaps,
+            required_sections=["Coverage Gaps", "Recommendations", "Open Questions"],
+        )
 
-    test_plan = "\n\n".join([
-        "# Unit Tests\n" + unit_tests,
-        "# Integration Tests\n" + integration_tests,
-        "# Security Tests\n" + security_tests,
-        "# Coverage Gaps\n" + coverage_gaps,
-    ])
+    defects = _extract_defects(coverage_gaps) if coverage_gaps else []
 
-    if _persist("test_plan", selected_artifacts):
+    test_plan = "\n\n".join(filter(None, [
+        ("# Unit Tests\n" + unit_tests) if unit_tests else "",
+        ("# Integration Tests\n" + integration_tests) if integration_tests else "",
+        ("# Security Tests\n" + security_tests) if security_tests else "",
+        ("# Coverage Gaps\n" + coverage_gaps) if coverage_gaps else "",
+    ]))
+
+    if need_test_plan and test_plan:
         write_artifact(run_dir, "11_test_plan.md", test_plan)
-    if _persist("coverage_gaps", selected_artifacts):
+    if need_coverage and coverage_gaps:
         write_artifact(run_dir, "12_coverage_gaps.md", coverage_gaps)
 
     return {**state, "test_plan": test_plan, "defect_list": defects, "coverage_map": "(REQ/US → tests mapping TBD)"}
