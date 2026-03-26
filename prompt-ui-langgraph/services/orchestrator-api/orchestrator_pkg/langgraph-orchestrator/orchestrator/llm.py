@@ -75,6 +75,7 @@ def build_llm(provider: Optional[str] = None, model_name: Optional[str] = None) 
             openai_api_key=azure_key,
             openai_api_version=azure_api_version,
             temperature=0,
+            max_tokens=4096,
         )
         return _LangChainTextAdapter(model)
 
@@ -82,14 +83,19 @@ def build_llm(provider: Optional[str] = None, model_name: Optional[str] = None) 
         if not openai_key:
             raise ValueError("OpenAI provider selected but OPENAI_API_KEY is missing")
         chosen_model = model_name or os.getenv("MODEL_NAME", "gpt-4.1-mini")
-        model = ChatOpenAI(model=chosen_model, api_key=openai_key, temperature=0)
+        model = ChatOpenAI(model=chosen_model, api_key=openai_key, temperature=0, max_tokens=4096)
         return _LangChainTextAdapter(model)
 
     if selected_provider == "gemini":
         if not gemini_key:
             raise ValueError("Gemini provider selected but GEMINI_API_KEY is missing")
-        chosen_model = model_name or os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-        model = ChatGoogleGenerativeAI(model=chosen_model, google_api_key=gemini_key, temperature=0)
+        chosen_model = model_name or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        model = ChatGoogleGenerativeAI(
+            model=chosen_model,
+            google_api_key=gemini_key,
+            temperature=0,
+            max_output_tokens=8192,
+        )
         return _LangChainTextAdapter(model)
 
     if selected_provider not in {"auto", ""}:
@@ -107,12 +113,17 @@ def build_llm(provider: Optional[str] = None, model_name: Optional[str] = None) 
 
     if openai_key:
         fallback_model = model_name or os.getenv("MODEL_NAME", "gpt-4.1-mini")
-        model = ChatOpenAI(model=fallback_model, api_key=openai_key, temperature=0)
+        model = ChatOpenAI(model=fallback_model, api_key=openai_key, temperature=0, max_tokens=4096)
         return _LangChainTextAdapter(model)
 
     if gemini_key:
-        fallback_model = model_name or os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
-        model = ChatGoogleGenerativeAI(model=fallback_model, google_api_key=gemini_key, temperature=0)
+        fallback_model = model_name or os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+        model = ChatGoogleGenerativeAI(
+            model=fallback_model,
+            google_api_key=gemini_key,
+            temperature=0,
+            max_output_tokens=8192,
+        )
         return _LangChainTextAdapter(model)
 
     return MockLLM()

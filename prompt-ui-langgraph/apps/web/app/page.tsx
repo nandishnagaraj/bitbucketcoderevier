@@ -296,7 +296,7 @@ export default function HomePage() {
               const next = e.target.value as 'azure' | 'gemini';
               setLlmProvider(next);
               if (!llmModel.trim()) {
-                setLlmModel(next === 'azure' ? '' : 'gemini-1.5-flash');
+                setLlmModel(next === 'azure' ? '' : 'gemini-2.5-flash');
               }
             }}
             style={{ width: '100%' }}
@@ -309,7 +309,7 @@ export default function HomePage() {
           <input
             value={llmModel}
             onChange={(e) => setLlmModel(e.target.value)}
-            placeholder={llmProvider === 'gemini' ? 'gemini-1.5-flash' : 'Uses AZURE_OPENAI_DEPLOYMENT'}
+            placeholder={llmProvider === 'gemini' ? 'gemini-2.5-flash' : 'Uses AZURE_OPENAI_DEPLOYMENT'}
             style={{ width: '100%' }}
           />
 

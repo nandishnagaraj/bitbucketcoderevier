@@ -59,6 +59,6 @@ class Settings(BaseModel):
     azure_openai_deployment: str = os.getenv("AZURE_OPENAI_DEPLOYMENT", "")
     azure_openai_api_version: str = os.getenv("AZURE_OPENAI_API_VERSION", "")
     gemini_api_key: str = os.getenv("GEMINI_API_KEY", "")
-    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-1.5-flash")
+    gemini_model: str = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 settings = Settings()
