@@ -29,7 +29,7 @@ async function getOAuthToken(): Promise<string> {
       headers: {
         "Content-Type": "application/x-www-form-urlencoded"
       },
-      timeout: 15000
+      timeout: 30000
     }
   );
 
@@ -47,7 +47,7 @@ async function createClient(): Promise<AxiosInstance> {
     logger.debug('Using repository access token for authentication');
     return axios.create({
       baseURL,
-      timeout: 30000,
+      timeout: 60000,
       headers: {
         Authorization: `Bearer ${repoToken}`,
         Accept: "application/json"

@@ -38,16 +38,30 @@ A comprehensive TypeScript service that provides automated code reviews for Bitb
 ```text
 bitbucket-gemini-reviewer-ts/
 ├── src/
-│   ├── index.ts          # Main Express server and webhook handler
-│   ├── bitbucket.ts      # Bitbucket API client and authentication
-│   ├── gemini.ts         # Azure OpenAI integration for code review
-│   ├── prompt.ts         # Review prompt builder
-│   ├── dedupe.ts         # Finding deduplication logic
-│   └── types.ts          # TypeScript type definitions
-├── .env.example         # Environment variable template
-├── package.json         # Dependencies and scripts
-├── tsconfig.json        # TypeScript configuration
-└── README.md           # This file
+│   ├── index.ts              # Main Express server and webhook handler
+│   ├── bitbucket.ts          # Bitbucket API client and authentication
+│   ├── gemini.ts             # Azure OpenAI integration for code review
+│   ├── prompt.ts             # Review prompt builder
+│   ├── dedupe.ts             # Finding deduplication logic
+│   ├── types.ts              # TypeScript type definitions
+│   └── utils/                # Security and logging utilities
+│       ├── logger.ts         # Winston structured logging
+│       ├── validation.ts     # Input validation and sanitization
+│       └── token-manager.ts  # Secure token management
+├── nginx/                    # Nginx configuration for Docker
+│   └── nginx.conf            # Reverse proxy configuration
+├── logs/                     # Log files directory (created at runtime)
+├── .env.example              # Environment variable template
+├── .env.docker               # Docker environment template
+├── docker-compose.yml        # Docker Compose orchestration
+├── Dockerfile                # Container configuration
+├── .dockerignore             # Docker build exclusions
+├── package.json              # Dependencies and scripts
+├── tsconfig.json             # TypeScript configuration
+├── README.md                 # This file
+├── Instructions.md           # Code review guidelines
+├── SECURITY_IMPROVEMENTS.md  # Security documentation
+└── DOCKER_DEPLOYMENT.md      # Docker deployment guide
 ```
 
 ## 🔧 Code Explanation
@@ -371,32 +385,100 @@ Comprehensive TypeScript interfaces for type safety.
    - Check webhook delivery logs
    - Verify AI comments appear
 
-### Step 8: Production Deployment
+### Step 8: Docker Deployment (Recommended for Production)
 
-**For production use, consider:**
+#### **Option A: Quick Docker Setup**
 
-1. **Containerization**:
-   ```dockerfile
-   FROM node:20-alpine
-   WORKDIR /app
-   COPY package*.json ./
-   RUN npm ci --only=production
-   COPY dist ./dist
-   EXPOSE 3000
-   CMD ["node", "dist/index.js"]
+1. **Prepare Environment**:
+   ```bash
+   # Copy the production environment template
+   cp .env.docker .env
+   
+   # Edit with your credentials
+   nano .env
    ```
 
-2. **Build for Production**:
+2. **Start with Docker Compose**:
+   ```bash
+   # Basic deployment
+   docker-compose up -d
+   
+   # With Nginx reverse proxy (for HTTPS)
+   docker-compose --profile with-nginx up -d
+   
+   # With Redis cache (for performance)
+   docker-compose --profile with-redis up -d
+   
+   # Full production setup
+   docker-compose --profile with-nginx --profile with-redis up -d
+   ```
+
+3. **Verify Deployment**:
+   ```bash
+   # Check service status
+   docker-compose ps
+   
+   # Check logs
+   docker-compose logs -f ai-reviewer
+   
+   # Test health endpoint
+   curl http://localhost:3001/health
+   ```
+
+#### **Option B: Manual Docker Build**
+
+1. **Build the Image**:
+   ```bash
+   docker build -t bitbucket-ai-reviewer .
+   ```
+
+2. **Run the Container**:
+   ```bash
+   docker run -d \
+     --name ai-reviewer \
+     -p 3001:3001 \
+     --env-file .env \
+     -v $(pwd)/logs:/app/logs \
+     bitbucket-ai-reviewer
+   ```
+
+#### **Docker Features:**
+- ✅ **Security**: Non-root user, minimal Alpine base
+- ✅ **Health Checks**: Built-in container health monitoring
+- ✅ **Resource Limits**: Memory and CPU constraints
+- ✅ **Logging**: Persistent log volume mounting
+- ✅ **Environment Isolation**: Secure configuration management
+- ✅ **Scalable**: Easy horizontal scaling with Docker Compose
+
+#### **Docker Files Overview:**
+- `docker-compose.yml`: Multi-service orchestration
+- `Dockerfile`: Production-ready container configuration
+- `.dockerignore`: Optimized build exclusions
+- `nginx/nginx.conf`: Reverse proxy configuration
+- `.env.docker`: Production environment template
+
+#### **For detailed Docker instructions**, see: [DOCKER_DEPLOYMENT.md](DOCKER_DEPLOYMENT.md)
+
+### Step 9: Traditional Production Deployment
+
+**For non-Docker deployments:**
+
+1. **Build for Production**:
    ```bash
    npm run build
    npm start
    ```
 
-3. **Environment Security**:
+2. **Environment Security**:
    - Use environment variables for secrets
    - Enable HTTPS
    - Set up proper webhook secrets
    - Configure rate limiting
+
+3. **Process Management**:
+   - Use PM2 or similar process manager
+   - Set up log rotation
+   - Configure monitoring and alerts
 
 ## 🔍 How It Works: Step-by-Step Flow
 

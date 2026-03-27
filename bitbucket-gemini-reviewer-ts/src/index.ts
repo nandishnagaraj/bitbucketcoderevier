@@ -125,6 +125,13 @@ app.listen(PORT, () => {
     timestamp: new Date().toISOString()
   });
 });
+  process.on('unhandledRejection', (reason) => {
+    console.error('Unhandled Rejection:', reason);
+  });
+
+  process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+  });
 
 function toBoolean(value: string | undefined, defaultValue: boolean): boolean {
   if (value === undefined) {
@@ -248,7 +255,18 @@ async function runReview(input: { workspace: string; repoSlug: string; prId: num
 
   if (POST_SUMMARY_COMMENT) {
     const body = renderSummaryComment(pr.id, pr.source?.commit?.hash, review);
+    logger.info('Posting summary comment', {
+      workspace: input.workspace,
+      repoSlug: input.repoSlug,
+      prId: input.prId,
+      bodyLength: body.length
+    });
     await createPullRequestComment(input.workspace, input.repoSlug, input.prId, body);
+    logger.info('Summary comment posted successfully', {
+      workspace: input.workspace,
+      repoSlug: input.repoSlug,
+      prId: input.prId
+    });
   }
 
   if (POST_INLINE_COMMENTS) {
